@@ -8,6 +8,7 @@
 #include<time.h>
 #include <pwd.h>
 #include<grp.h>
+#include<locale.h>
 typedef struct res_{
     int res_l;
     int res_s;
@@ -35,6 +36,7 @@ void mode_to_string(mode_t mode, char str[11]);
 void swap_l(struct entry** en,int count);
 int main(int argc,char* argv[])
 {
+    setlocale(LC_COLLATE,"zh_CN.UTF-8");
     int opt;
      char** p=(char**)malloc(sizeof(char*)*20);
      int index=0;
