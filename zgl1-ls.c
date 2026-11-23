@@ -4,7 +4,6 @@
 #include<string.h>
 #include<stdlib.h>
 #include<sys/stat.h>
-#include<stdbool.h>
 #include<time.h>
 #include <pwd.h>
 #include<grp.h>
@@ -23,6 +22,7 @@ struct entry {
     struct stat st;
     char* name;
 };
+int flag_DIR=0;
 void print_s(struct entry* en);
 void print_i(struct entry* en);
 void print_(char** p,int index);
@@ -78,13 +78,16 @@ void print_i(struct entry* en)
 }
 void print_(char** p,int index)
 {
-    if(index==0)
+    if(index==0&&flag_DIR==0)
     {
         index=1;
         p[0]=".";
     }
+    if(index==0&&flag_DIR==1)
+    return;
         for(int i=0;i<index;i++)
         {
+            char** str_DIR=(char**)malloc(sizeof(char*));
             printf("%s:\n",p[i]);
             DIR* dir=opendir(p[i]);
             if (dir == NULL) {
@@ -95,15 +98,21 @@ void print_(char** p,int index)
             struct dirent* r;
             int count=0;
             struct entry* list=NULL;
+            int count_DIR=0;
             while((r=readdir(dir))!=NULL)
             {
                 char path[4096];
+                if(opt_res.res_R==1&&flag_DIR==1)
+                {
+                   if(strcmp(r->d_name,".")==0||strcmp(r->d_name,"..")==0)
+                   continue;
+                }
                 snprintf(path, sizeof(path),"%s/%s",p[i],r->d_name);
-                  struct stat sta;
+                struct stat sta;
                 if(opt_res.res_a==0)
                 {
                     if(r->d_name[0]!='.')
-                    lstat(path, &sta);
+                        lstat(path, &sta);
                     else
                     continue;
                 }
@@ -111,7 +120,20 @@ void print_(char** p,int index)
                 lstat(path, &sta);
                 }
             collect(&list,&count,&sta,r->d_name);
+            if(S_ISDIR(list->st.st_mode)&&opt_res.res_R==1)
+            {
+                if(opt_res.res_a==0)
+                {
+                    if(r->d_name[0]=='.')
+                    continue;
+                }
+                flag_DIR=1;
+                count_DIR++;
+                char** pp_DIR=realloc(str_DIR,(count_DIR)*sizeof(char*));
+                str_DIR=pp_DIR;
+                str_DIR[count_DIR-1]=path;
             }
+        }
             swap_t(&list,count);
             swap_r(&list,count);
             swap_l(&list,count);
@@ -138,6 +160,10 @@ void print_(char** p,int index)
             }
             closedir(dir);
             printf("\n");
+            if(opt_res.res_R==1){
+            flag_DIR=1;
+            print_(str_DIR,count_DIR);
+            }
         }
 }
 void print_name(struct entry* en,struct res_* res_name)
@@ -196,7 +222,14 @@ void swap_r(struct entry** arr,int count)
 }
 void mode_to_string(mode_t mode, char str[11])
 {
-    str[0]=S_ISREG(mode)?'-':'d';
+    if (S_ISREG(mode)) str[0] = '-';
+    else if (S_ISDIR(mode)) str[0] = 'd';
+    else if (S_ISCHR(mode)) str[0] = 'c';
+    else if (S_ISBLK(mode)) str[0] = 'b';
+    else if (S_ISFIFO(mode))str[0] = 'p';
+    else if (S_ISLNK(mode)) str[0] = 'l';
+    else if (S_ISSOCK(mode))str[0] = 's';
+    else  str[0] = '?';
     str[1]=((S_IRUSR&mode)==256)?'r':'-';
     str[2]=((S_IWUSR&mode)==128)?'w':'-';
     str[3]=((S_IXUSR&mode)==64)?'x':'-';
@@ -242,4 +275,3 @@ void swap_l(struct entry** en,int count)
     }
 }
 }
-
