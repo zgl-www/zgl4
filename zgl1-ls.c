@@ -134,9 +134,9 @@ void print_(char** p,int index)
                 str_DIR[count_DIR-1]=path;
             }
         }
+            swap_l(&list,count);
             swap_t(&list,count);
             swap_r(&list,count);
-            swap_l(&list,count);
             for(int i=0;i<count;i++)
             {
                 if(opt_res.res_l==0){
