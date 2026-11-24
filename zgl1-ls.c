@@ -23,20 +23,24 @@ struct entry {
     char* name;
 };
 int flag_DIR=0;
+int color_on;
 void print_s(struct entry* en);
 void print_i(struct entry* en);
 void print_(char** p,int index);
-void print_name(struct entry* en,struct res_* res_name);
+void print_name(struct entry* en);
 void collect(struct entry** arr,int* count,struct stat* sta,char* name);
 void swap_sta(struct stat** p);
 void swap_t(struct entry** arr,int count);
 void swap_r(struct entry** arr,int count);
 void print_l(struct entry* en,char* str);
 void mode_to_string(mode_t mode, char str[11]);
-void swap_l(struct entry** en,int count);
+void swap_name(struct entry** en,int count);
+void color_init(void);
+char *style_of_mode(mode_t m);
 int main(int argc,char* argv[])
 {
     setlocale(LC_COLLATE,"zh_CN.UTF-8");
+    color_init();
     int opt;
      char** p=(char**)malloc(sizeof(char*)*20);
      int index=0;
@@ -102,11 +106,9 @@ void print_(char** p,int index)
             while((r=readdir(dir))!=NULL)
             {
                 char path[4096];
-                if(opt_res.res_R==1&&flag_DIR==1)
-                {
-                   if(strcmp(r->d_name,".")==0||strcmp(r->d_name,"..")==0)
-                   continue;
-                }
+                if(p[i][strlen(p[i])-1]=='/')
+                snprintf(path, sizeof(path),"%s%s",p[i],r->d_name);
+                else
                 snprintf(path, sizeof(path),"%s/%s",p[i],r->d_name);
                 struct stat sta;
                 if(opt_res.res_a==0)
@@ -120,62 +122,80 @@ void print_(char** p,int index)
                 lstat(path, &sta);
                 }
             collect(&list,&count,&sta,r->d_name);
-            if(S_ISDIR(list->st.st_mode)&&opt_res.res_R==1)
-            {
-                if(opt_res.res_a==0)
-                {
-                    if(r->d_name[0]=='.')
-                    continue;
-                }
-                flag_DIR=1;
-                count_DIR++;
-                char** pp_DIR=realloc(str_DIR,(count_DIR)*sizeof(char*));
-                str_DIR=pp_DIR;
-                str_DIR[count_DIR-1]=path;
-            }
         }
-            swap_l(&list,count);
+            swap_name(&list,count);
             swap_t(&list,count);
             swap_r(&list,count);
-            for(int i=0;i<count;i++)
+            for(int j=0;j<count;j++)
             {
                 if(opt_res.res_l==0){
                 if(i%4==0&&i!=0)
                 printf("\n");
                 }
-                print_i(list);
-                print_s(list);
+                print_i(&list[j]);
+                print_s(&list[j]);
                 if(opt_res.res_l==1)
                 {
                     char str[11]={0};
-                    mode_to_string(list->st.st_mode,str);
+                    mode_to_string(list[j].st.st_mode,str);
                     print_l(list,str);
                 }                
-                print_name(list,&opt_res);
+                print_name(&list[j]);
                 if(opt_res.res_l==1&&i!=count-1)
                 {
                     printf("\n");
                 }
-                list++;
             }
             closedir(dir);
             printf("\n");
+            for(int j=0;j<count;j++){
+            if(S_ISDIR(list[j].st.st_mode)&&opt_res.res_R==1)
+            {
+                char path_DIR[4096];
+                if(strcmp(list[j].name,".")==0||strcmp(list[j].name,"..")==0)
+                continue;
+                if(p[i][strlen(p[i])-1]=='/')
+                 snprintf(path_DIR, sizeof(path_DIR),"%s%s",p[i],list[j].name);
+                 else
+                 snprintf(path_DIR, sizeof(path_DIR),"%s/%s",p[i],list[j].name);
+                if(opt_res.res_a==0)
+                {
+                    if(list[j].name[0]=='.')
+                    continue;
+                }
+                flag_DIR=1;
+                count_DIR++;
+                char** pp_DIR=realloc(str_DIR,(count_DIR)*sizeof(char*));
+                if(pp_DIR==NULL)
+               break;
+                str_DIR=pp_DIR;
+                str_DIR[count_DIR-1]=strdup(path_DIR);
+            }
+        }
             if(opt_res.res_R==1){
             flag_DIR=1;
             print_(str_DIR,count_DIR);
+            for(int i=0;i<count_DIR;i++)
+            free(str_DIR[i]);
+            free(str_DIR);
             }
         }
 }
-void print_name(struct entry* en,struct res_* res_name)
+void print_name(struct entry* en)
 {
-    if(res_name->res_a==1)
+    char* c=style_of_mode(en->st.st_mode);
+    if(c!=NULL)
+    printf("%s",c);
+    if(opt_res.res_a==1)
     {
-            printf("%-*s",17,en->name);
+            printf("%-*s ",17,en->name);
     }
     else{
             if(en->name[0]!='.')
-        printf("%-*s",17,en->name);
+        printf("%-*s ",17,en->name);
     }
+    if(c!=NULL)
+    printf("%s","\033[0m");
 }
 void collect(struct entry** arr,int* count,struct stat* sta,char* name)
 {
@@ -187,7 +207,7 @@ void collect(struct entry** arr,int* count,struct stat* sta,char* name)
     }
    *arr=stm;
    (*arr)[*count].st=*sta;
-   (*arr)[*count].name=name;
+   (*arr)[*count].name=strdup(name);
    (*count)++;
 }
 void swap_t(struct entry** arr,int count)
@@ -258,9 +278,8 @@ void print_l(struct entry* en,char* str)
         strftime(buf,30,"%-m月 %e %H:%M ",&time);
         printf("%s",buf);
 }
-void swap_l(struct entry** en,int count)
+void swap_name(struct entry** en,int count)
 {
-    if(opt_res.res_l==1){
     for(int i=0;i<count-1;i++)
     {
          for(int j=i+1;j<count;j++)
@@ -274,4 +293,19 @@ void swap_l(struct entry** en,int count)
          }
     }
 }
+void color_init(void)
+{
+    const char *term = getenv("TERM");
+    if (getenv("NO_COLOR"))                     color_on = 0;
+    else if (term && !strcmp(term, "dumb"))     color_on = 0;
+    else                                        color_on = isatty(STDOUT_FILENO);
+}
+char *style_of_mode(mode_t m)
+{
+    if (S_ISDIR(m))               return "\033[1;34m";
+    if (S_ISLNK(m))               return "\033[1;36m";
+    if (S_ISFIFO(m))              return "\033[33m";
+    if (S_ISCHR(m) || S_ISBLK(m)) return "\033[1;33m";
+    if (m & 0111)                 return "\033[1;32m";
+    return NULL;
 }
