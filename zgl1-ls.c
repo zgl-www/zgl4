@@ -134,13 +134,19 @@ void print_(char** p,int index)
                 if(opt_res.res_a==0)
                 {
                     if(r->d_name[0]!='.')
-                        lstat(path, &sta);
+                    {
+                        if(lstat(path, &sta)==-1)
+                        continue;
+                    }
+                        
                     else
                     continue;
                 }
                 else{
-                lstat(path, &sta);
+                if(lstat(path, &sta)==-1)
+                continue;
                 }
+            
             collect(&list,&count,&sta,r->d_name);
         }
             swap_name(&list,count);
@@ -166,7 +172,7 @@ void print_(char** p,int index)
                     print_l(&list[j],str);
                 }                
                 print_name(&list[j],len_max);
-                if(opt_res.res_l==1&&i!=count-1)
+                if(opt_res.res_l==1&&j!=count-1)
                 {
                     printf("\n");
                 }
@@ -299,11 +305,21 @@ void print_l(struct entry* en,char* str)
         printf("%-11s",str);
         printf("%-3lu",en->st.st_nlink);
         struct passwd *pw=getpwuid(en->st.st_uid);
-        int len1=strlen(pw->pw_name);
+        if(pw!=NULL)
+        {
+            int len1=strlen(pw->pw_name);
         printf("%-*s",len1+1,pw->pw_name);
+        }
+        else
+        printf("NUKNOWN");
         struct group* gp=getgrgid(en->st.st_gid);
-        int len2=strlen(gp->gr_name);
+        if(gp!=NULL)
+        {
+            int len2=strlen(gp->gr_name);
         printf("%-*s",len2+1,gp->gr_name);
+        }
+        else
+         printf("NUKNOWN");
         printf("%6ld ",en->st.st_size);
         char buf[30]={0};
         struct tm time;
