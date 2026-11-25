@@ -8,6 +8,7 @@
 #include <pwd.h>
 #include<grp.h>
 #include<locale.h>
+#include<sys/ioctl.h>
 typedef struct res_{
     int res_l;
     int res_s;
@@ -24,10 +25,11 @@ struct entry {
 };
 int flag_DIR=0;
 int color_on;
+int width=-1;
 void print_s(struct entry* en);
 void print_i(struct entry* en);
 void print_(char** p,int index);
-void print_name(struct entry* en);
+void print_name(struct entry* en,int len_max);
 void collect(struct entry** arr,int* count,struct stat* sta,char* name);
 void swap_sta(struct stat** p);
 void swap_t(struct entry** arr,int count);
@@ -37,8 +39,26 @@ void mode_to_string(mode_t mode, char str[11]);
 void swap_name(struct entry** en,int count);
 void color_init(void);
 char *style_of_mode(mode_t m);
+int max_len(struct entry** en,int count);
 int main(int argc,char* argv[])
 {
+    if(isatty(STDOUT_FILENO))
+    {
+        struct winsize win;
+        if(ioctl(STDOUT_FILENO,TIOCGWINSZ,&win)!=-1&&win.ws_col>0)
+        width=win.ws_col;
+    }
+    if(width<0)
+    {
+        char* env=getenv("COLUMNS");
+        int c=0;
+        if(env!=NULL)
+        c=atoi(env);
+        if(c)
+        width=c;
+        else
+        width=80;
+    }
     setlocale(LC_COLLATE,"zh_CN.UTF-8");
     color_init();
     int opt;
@@ -91,7 +111,7 @@ void print_(char** p,int index)
     return;
         for(int i=0;i<index;i++)
         {
-            char** str_DIR=(char**)malloc(sizeof(char*));
+            char** str_DIR=NULL;
             printf("%s:\n",p[i]);
             DIR* dir=opendir(p[i]);
             if (dir == NULL) {
@@ -126,27 +146,40 @@ void print_(char** p,int index)
             swap_name(&list,count);
             swap_t(&list,count);
             swap_r(&list,count);
+            int len_s=0,len_i=0;
+            if(opt_res.res_i==1)
+            len_i=9;
+            if(opt_res.res_s)
+            len_s=3;
+            int len_max=max_len(&list,count);
+            int col=width/(len_max+1+len_i+len_s);
+            if(col<1)
+            col=1;
             for(int j=0;j<count;j++)
             {
-                if(opt_res.res_l==0){
-                if(i%4==0&&i!=0)
-                printf("\n");
-                }
                 print_i(&list[j]);
                 print_s(&list[j]);
                 if(opt_res.res_l==1)
                 {
                     char str[11]={0};
                     mode_to_string(list[j].st.st_mode,str);
-                    print_l(list,str);
+                    print_l(&list[j],str);
                 }                
-                print_name(&list[j]);
+                print_name(&list[j],len_max);
                 if(opt_res.res_l==1&&i!=count-1)
                 {
                     printf("\n");
                 }
+                if(opt_res.res_l==0)
+                {
+                   if((j+1)%col==0)
+                   printf("\n");
+                }
             }
             closedir(dir);
+            if(index>1&&opt_res.res_R==0&&i!=index-1)
+            printf("\n");
+            if(opt_res.res_R==1)
             printf("\n");
             for(int j=0;j<count;j++){
             if(S_ISDIR(list[j].st.st_mode)&&opt_res.res_R==1)
@@ -181,18 +214,18 @@ void print_(char** p,int index)
             }
         }
 }
-void print_name(struct entry* en)
+void print_name(struct entry* en,int len_max)
 {
     char* c=style_of_mode(en->st.st_mode);
     if(c!=NULL)
     printf("%s",c);
     if(opt_res.res_a==1)
     {
-            printf("%-*s ",17,en->name);
+            printf("%-*s",len_max+1,en->name);
     }
     else{
             if(en->name[0]!='.')
-        printf("%-*s ",17,en->name);
+        printf("%-*s",len_max+1,en->name);
     }
     if(c!=NULL)
     printf("%s","\033[0m");
@@ -308,4 +341,15 @@ char *style_of_mode(mode_t m)
     if (S_ISCHR(m) || S_ISBLK(m)) return "\033[1;33m";
     if (m & 0111)                 return "\033[1;32m";
     return NULL;
+}
+int max_len(struct entry** en,int count)
+{
+    int max=0;
+    for(int i=0;i<count;i++)
+    {
+        int len=strlen((*en)[i].name);
+        if(len>max)
+        max=len;
+    }
+    return max;
 }
